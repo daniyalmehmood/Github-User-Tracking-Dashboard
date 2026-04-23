@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tracked Codeline Developers — Rankings</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f9f9f7; color: #1a1a18; line-height: 1.5; }
+    a { color: inherit; }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+    .topbar { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 1.25rem; }
+    .title { font-size: 20px; font-weight: 500; }
+    .source { font-size: 12px; color: #888; margin-top: 3px; }
+    .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .btn { font-size: 12px; padding: 5px 13px; border-radius: 8px; border: 0.5px solid #ccc; background: transparent; color: #1a1a18; cursor: pointer; white-space: nowrap; transition: background 0.15s; }
+    .btn:hover { background: #f0efeb; }
+    .btn-active { background: #e6f1fb; border-color: #b5d4f4; color: #185fa5; }
+    .filter-group { display: flex; gap: 10px; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+    .filter-label { font-size: 12px; font-weight: 600; color: #555; min-width: 90px; }
+    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 1.25rem; }
+    .stat { background: #f0efeb; border-radius: 8px; padding: 0.65rem 0.9rem; }
+    .stat-label { font-size: 10px; color: #888; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-val { font-size: 19px; font-weight: 500; }
+    .stat-val.green { color: #3b6d11; }
+    .stat-val.red   { color: #a32d2d; }
+    
+    /* Batch Leaderboard Styles */
+    .batch-wrap { background: #fff; border: 0.5px solid #e5e3db; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.25rem; display: none; }
+    .batch-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 1rem; }
+    .batch-card { background: #f9f9f7; border: 0.5px solid #e5e3db; border-radius: 8px; padding: 1rem; text-align: center; display: flex; flex-direction: column; justify-content: center; cursor: pointer; transition: all 0.2s; }
+    .batch-card:hover { background: #fff; border-color: #185fa5; box-shadow: 0 4px 12px rgba(24, 95, 165, 0.15); transform: translateY(-2px); }
+    .batch-rank { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.05em; }
+    .batch-name { font-size: 14px; font-weight: 600; color: #1a1a18; margin-bottom: 8px; }
+    .batch-score { font-size: 22px; font-weight: 600; color: #185fa5; }
+    .batch-score span { font-size: 11px; color: #888; font-weight: 500; text-transform: uppercase; }
+
+    /* Search & Filter Row */
+    .search-filter-row { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; }
+    .search-input { flex-grow: 1; font-size: 13px; padding: 8px 12px; border-radius: 8px; border: 0.5px solid #ccc; background: #fff; color: #1a1a18; outline: none; min-width: 200px; }
+    .filter-select { font-size: 13px; padding: 8px 12px; border-radius: 8px; border: 0.5px solid #ccc; background: #fff; color: #1a1a18; outline: none; cursor: pointer; min-width: 150px; }
+
+    .table-wrap { border: 0.5px solid #e5e3db; border-radius: 12px; overflow: hidden; background: #fff; overflow-x: auto; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: auto; }
+    .tbl th { padding: 9px 12px; font-size: 10px; font-weight: 500; color: #888; background: #f7f6f2; border-bottom: 0.5px solid #e5e3db; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+    
+    /* Sorting Styles */
+    .sortable { cursor: pointer; user-select: none; transition: background 0.15s; }
+    .sortable:hover { background: #e5e3db !important; color: #1a1a18; }
+    .sort-icon { display: inline-block; width: 12px; text-align: center; opacity: 0.3; margin-left: 2px; }
+    .sortable.active { color: #185fa5; font-weight: 600; }
+    .sortable.active .sort-icon { opacity: 1; }
+
+    .tbl td { padding: 8px 12px; border-bottom: 0.5px solid #f0efeb; vertical-align: middle; }
+    .col-rank { width: 100px; text-align: center; }
+    .col-change { width: 85px; text-align: center; }
+    .col-user { width: auto; min-width: 150px; }
+    .col-org { width: 100px; text-align: center; }
+    .col-stack { width: 130px; text-align: center; }
+    .col-contribs { width: 110px; text-align: right; }
+    
+    .rank-n { font-size: 14px; font-weight: 600; color: #185fa5;}
+    .rank-label { font-size: 9px; color: #888; display: block; text-transform: uppercase;}
+    .chip { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; font-weight: 500; padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
+    .chip-up { background: #eaf3de; color: #3b6d11; }
+    .chip-down { background: #fcebeb; color: #a32d2d; }
+    .chip-same { background: #f0efeb; color: #888; }
+    .chip-new { background: #e6f1fb; color: #185fa5; }
+    .user-row { display: flex; align-items: center; gap: 9px; }
+    .av { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: #f0efeb; border: 1px solid #e5e3db; }
+    .uname { color: #1a1a18; text-decoration: none; font-weight: 500; font-size: 14px; }
+    .uname:hover { color: #185fa5; text-decoration: underline; }
+    .uname-sub { font-size: 11px; color: #aaa; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+    .org-badge { display: inline-block; background: #f0efeb; color: #555; font-size: 11px; font-weight: 500; padding: 4px 8px; border-radius: 4px; text-align: center; }
+    .org-badge.tra { background: #d4e8ff; color: #185fa5; font-weight: 600; }
+    .stack-badge { display: inline-block; background: #f0efeb; color: #555; font-size: 11px; font-weight: 500; padding: 4px 8px; border-radius: 4px; text-align: center; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .stack-badge.java { background: #fff4e6; color: #d97706; }
+    .contribs-n { font-size: 13px; font-weight: 500; }
+    .state-msg { padding: 3rem; text-align: center; color: #888; font-size: 14px; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #ddd; border-top-color: #888; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Modal Styles */
+    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); animation: fadeIn 0.3s; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .modal.open { display: flex; align-items: center; justify-content: center; }
+    .modal-content { background-color: #fff; border-radius: 12px; padding: 2rem; max-width: 900px; width: 95%; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); animation: slideIn 0.3s; }
+    @keyframes slideIn { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid #e5e3db; padding-bottom: 1rem; }
+    .modal-title { font-size: 22px; font-weight: 600; color: #1a1a18; }
+    .modal-close { font-size: 24px; cursor: pointer; color: #888; transition: color 0.2s; border: none; background: none; }
+    .modal-close:hover { color: #1a1a18; }
+    .modal-body { display: grid; grid-template-columns: 1.5fr 1fr; gap: 2rem; align-items: start; }
+    .chart-container { width: 100%; height: 400px; border-radius: 8px; background: #f9f9f7; padding: 1rem; }
+    .breakdown-list { border: 1px solid #e5e3db; border-radius: 8px; max-height: 400px; overflow-y: auto; }
+    .breakdown-item { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border-bottom: 1px solid #f0efeb; }
+    .breakdown-item:last-child { border-bottom: none; }
+    .breakdown-avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: #f0efeb; border: 1px solid #e5e3db; flex-shrink: 0; }
+    .breakdown-info { flex: 1; min-width: 0; }
+    .breakdown-username { font-weight: 500; color: #1a1a18; font-size: 13px; margin-bottom: 2px; text-decoration: none; }
+    .breakdown-username:hover { color: #185fa5; }
+    .breakdown-contribs { font-size: 11px; color: #888; display: flex; justify-content: space-between; }
+    .breakdown-bar { width: 100%; height: 4px; background: #f0efeb; border-radius: 2px; margin-top: 4px; overflow: hidden; }
+    .breakdown-fill { height: 100%; background: linear-gradient(90deg, #185fa5, #0f3a6a); border-radius: 2px; transition: width 0.3s; }
+
+    @media (max-width: 768px) {
+      .modal-body { grid-template-columns: 1fr; }
+      .chart-container { height: 300px; }
+      .breakdown-list { max-height: 300px; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div>
+      <div class="title">Codeline Developer Tracking Hub</div>
+      <div class="source" id="sub-title">Fetching real-time ranking data</div>
+    </div>
+    <div class="controls">
+      <button class="btn" id="refresh-btn" onclick="doRefresh()">
+        <span class="spinner" style="width:10px;height:10px;display:none" id="spin"></span>
+        <span id="btn-label">Refresh Rankings</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="filter-group">
+    <div class="filter-label">Scope:</div>
+    <button class="btn btn-active" id="scope-internal" onclick="switchScope('internal')">Internal Team Rank</button>
+    <button class="btn" id="scope-national" onclick="switchScope('national')">National Rank (Oman) </button>
+  </div>
+
+  <div class="filter-group">
+    <div class="filter-label">Contributions:</div>
+    <button class="btn btn-active" id="tab-public" onclick="switchTab('public')">Public</button>
+    <button class="btn" id="tab-all" onclick="switchTab('all')">All (incl. private)</button>
+  </div>
+
+  <div class="search-filter-row">
+    <input class="search-input" type="text" id="search" placeholder="Search by username or real name..." oninput="renderVisible()" />
+    <select class="filter-select" id="filter-org" onchange="renderVisible()">
+      <option value="all">All Organizations</option>
+    </select>
+    <select class="filter-select" id="filter-stack" onchange="renderVisible()">
+      <option value="all">All Tech Stacks</option>
+    </select>
+  </div>
+
+  <div class="stats-row" id="stats-row" style="display:none">
+    <div class="stat"><div class="stat-label">Results Found</div><div class="stat-val" id="s-total">—</div></div>
+    <div class="stat"><div class="stat-label">Rank Improved</div><div class="stat-val green" id="s-up">—</div></div>
+    <div class="stat"><div class="stat-label">Rank Dropped</div><div class="stat-val red" id="s-down">—</div></div>
+  </div>
+
+  <!-- BATCH LEADERBOARD -->
+  <div id="batch-leaderboard" class="batch-wrap">
+    <div class="title" style="font-size: 16px;" id="batch-title">Batch Leaderboard</div>
+    <div class="batch-cards" id="batch-cards"></div>
+  </div>
+
+  <div class="table-wrap">
+    <div class="state-msg" id="state-msg">
+      <span class="spinner"></span>&nbsp; Fetching Data...
+    </div>
+    <table class="tbl" id="main-table" style="display:none">
+      <thead>
+        <tr>
+          <th class="col-rank sortable active" onclick="handleSort('user_rank')" id="th-user_rank">Rank <span class="sort-icon">▲</span></th>
+          <th class="col-change sortable" onclick="handleSort('rank_change')" id="th-rank_change">Change <span class="sort-icon">↕</span></th>
+          <th class="col-user sortable" onclick="handleSort('login')" id="th-login" style="text-align: left;">Developer <span class="sort-icon">↕</span></th>
+          <th class="col-org sortable" onclick="handleSort('organization')" id="th-organization">Organization <span class="sort-icon">↕</span></th>
+          <th class="col-stack sortable" onclick="handleSort('stack')" id="th-stack">Tech Stack <span class="sort-icon">↕</span></th>
+          <th class="col-contribs sortable" onclick="handleSort('contribs')" id="th-contribs" style="text-align:right">Commits <span class="sort-icon">↕</span></th>
+        </tr>
+      </thead>
+      <tbody id="tbl-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL FOR 3D DONUT CHART -->
+<div id="chartModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modalTitle">Group Breakdown</div>
+        <div style="font-size: 12px; color: #888; margin-top: 4px;" id="modalSubtitle">Contributions by team member</div>
+      </div>
+      <button class="modal-close" onclick="closeChartModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="chart-container" id="chartContainer"></div>
+      <div class="breakdown-list" id="breakdownList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentTab = 'public';
+  let currentScope = 'internal';
+  
+  let rawUsers = [];
+  let sortCol = 'user_rank';
+  let sortAsc = true;
+  let chartInstance = null;
+
+  function getStackBadgeClass(stack) {
+    if (!stack) return 'stack-badge';
+    const lower = stack.toLowerCase();
+    if (lower.includes('java')) return 'stack-badge java';
+    return 'stack-badge';
+  }
+
+  function populateFilters(users) {
+    const orgs = new Set();
+    const stacks = new Set();
+    
+    users.forEach(u => {
+      if(u.organization) orgs.add(u.organization.trim());
+      if(u.stack) stacks.add(u.stack.trim());
+    });
+
+    const orgSel = document.getElementById('filter-org');
+    const stackSel = document.getElementById('filter-stack');
+    
+    const currOrg = orgSel.value;
+    const currStack = stackSel.value;
+
+    orgSel.innerHTML = '<option value="all">All Organizations</option>' + 
+      Array.from(orgs).sort().map(o => `<option value="${o}">${o}</option>`).join('');
+    
+    stackSel.innerHTML = '<option value="all">All Tech Stacks</option>' + 
+      Array.from(stacks).sort().map(s => `<option value="${s}">${s}</option>`).join('');
+
+    if (Array.from(orgs).includes(currOrg)) orgSel.value = currOrg;
+    if (Array.from(stacks).includes(currStack)) stackSel.value = currStack;
+  }
+
+  function handleSort(col) {
+    if (sortCol === col) {
+      sortAsc = !sortAsc;
+    } else {
+      sortCol = col;
+      sortAsc = (col === 'contribs' || col === 'rank_change') ? false : true;
+    }
+    
+    document.querySelectorAll('.sortable').forEach(th => {
+      th.classList.remove('active');
+      th.querySelector('.sort-icon').textContent = '↕';
+    });
+    
+    const activeTh = document.getElementById(`th-${col}`);
+    activeTh.classList.add('active');
+    activeTh.querySelector('.sort-icon').textContent = sortAsc ? '▲' : '▼';
+
+    renderVisible();
+  }
+
+  function closeChartModal() {
+    document.getElementById('chartModal').classList.remove('open');
+    if (chartInstance) {
+      chartInstance.destroy();
+      chartInstance = null;
+    }
+  }
+
+  async function openChartModal(groupName) {
+    document.getElementById('chartModal').classList.add('open');
+    document.getElementById('modalTitle').textContent = groupName;
+    
+    const org = groupName.split(' - ')[0];
+    const stack = groupName.split(' - ')[1];
+    
+    try {
+      const response = await fetch(`/api/group-breakdown?organization=${encodeURIComponent(org)}&stack=${encodeURIComponent(stack)}&tab=${currentTab}`);
+      const data = await response.json();
+      
+      if (data.users && data.users.length > 0) {
+        initChart(data.users, data.totalContribs);
+        renderBreakdownList(data.users, data.totalContribs);
+      }
+    } catch (e) {
+      document.getElementById('chartContainer').innerHTML = `<div style="padding: 2rem; text-align: center; color: #a32d2d;">Error loading breakdown: ${e.message}</div>`;
+    }
+  }
+
+  function initChart(users, totalContribs) {
+    const container = document.getElementById('chartContainer');
+    container.innerHTML = '<canvas id="contributionChart"></canvas>';
+
+    const sortedUsers = [...users].sort((a, b) => (b.contribs || 0) - (a.contribs || 0));
+
+    const labels = sortedUsers.map(u => u.login);
+    const data = sortedUsers.map(u => u.contribs || 0);
+    
+    const colors = [
+      '#185fa5', '#FF6B6B', '#4ECDC4', '#FFE66D', '#95E1D3',
+      '#C7CEEA', '#FF85A2', '#FFA502', '#1ABC9C', '#3498DB',
+      '#E74C3C', '#2ECC71', '#F39C12', '#9B59B6', '#1E8449',
+      '#D35400', '#16A085', '#8E44AD', '#C0392B', '#27AE60'
+    ];
+
+    const chartCanvas = document.getElementById('contributionChart');
+    
+    if (chartInstance) {
+      chartInstance.destroy();
+    }
+
+    // Store colors for breakdown list reference
+    window.chartColors = colors.slice(0, labels.length);
+
+    chartInstance = new Chart(chartCanvas, {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: data,
+          backgroundColor: colors.slice(0, labels.length),
+          borderColor: '#fff',
+          borderWidth: 2,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            enabled: true,
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            padding: 14,
+            borderColor: '#185fa5',
+            borderWidth: 2,
+            displayColors: true,
+            titleFont: {
+              size: 14,
+              weight: 'bold'
+            },
+            bodyFont: {
+              size: 13
+            },
+            callbacks: {
+              title: function(context) {
+                const label = context[0].label;
+                return `@${label}`;
+              },
+              label: function(context) {
+                const value = context.parsed;
+                const percentage = ((value / totalContribs) * 100).toFixed(2);
+                return [
+                  `Commits: ${value.toLocaleString()}`,
+                  `Percentage: ${percentage}%`
+                ];
+              },
+              afterLabel: function(context) {
+                const userIndex = context.dataIndex;
+                const user = sortedUsers[userIndex];
+                if (user.name) {
+                  return `Name: ${user.name}`;
+                }
+                return '';
+              }
+            }
+          }
+        },
+        animation: {
+          animateRotate: true,
+          animateScale: false,
+          duration: 800,
+          easing: 'easeInOutQuart'
+        }
+      }
+    });
+  }
+
+  function renderBreakdownList(users, totalContribs) {
+    const list = document.getElementById('breakdownList');
+    
+    // Sort users by contributions (descending)
+    const sorted = [...users].sort((a, b) => (b.contribs || 0) - (a.contribs || 0));
+    
+    list.innerHTML = sorted.map((user, index) => {
+      const percentage = totalContribs > 0 ? ((user.contribs || 0) / totalContribs * 100).toFixed(1) : 0;
+      const barWidth = totalContribs > 0 ? ((user.contribs || 0) / totalContribs * 100) : 0;
+      const color = window.chartColors ? window.chartColors[index] : '#185fa5';
+      
+      return `
+        <div class="breakdown-item">
+          <div style="width: 12px; height: 12px; border-radius: 50%; background: ${color}; flex-shrink: 0; margin-top: 2px;"></div>
+          <img class="breakdown-avatar" src="${user.avatar || 'https://avatars.githubusercontent.com/u/0'}" loading="lazy" onerror="this.style.visibility='hidden'" />
+          <div class="breakdown-info">
+            <a class="breakdown-username" href="https://github.com/${user.login}" target="_blank">${user.login}</a>
+            <div class="breakdown-contribs">
+              <span>${(user.contribs || 0).toLocaleString()} commits</span>
+              <span>${percentage}%</span>
+            </div>
+            <div class="breakdown-bar">
+              <div class="breakdown-fill" style="width: ${barWidth}%; background: ${color};"></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderTable(users) {
+    rawUsers = users;
+    populateFilters(users);
+
+    // --- BATCH LEADERBOARD LOGIC ---
+    const batches = {};
+    users.forEach(u => {
+      let org = (u.organization || '').trim().toUpperCase();
+      let rawStack = (u.stack || '').trim().toLowerCase();
+      let stack = (u.stack || '').trim();
+      
+      if (rawStack.includes('java')) stack = 'Java Full Stack';
+      else if (rawStack.includes('c#')) stack = 'C# Full Stack';
+      
+      if (org && stack) {
+        const batchName = `${org} - ${stack}`;
+        if (!batches[batchName]) batches[batchName] = 0;
+        batches[batchName] += (u.contribs || 0);
+      }
+    });
+
+    const sortedBatches = Object.entries(batches).sort((a, b) => b[1] - a[1]);
+    
+    let cardsHtml = '';
+    sortedBatches.forEach((b, i) => {
+      let medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '';
+      cardsHtml += `
+        <div class="batch-card" onclick="openChartModal('${b[0]}')">
+          <div class="batch-rank">Rank #${i + 1} ${medal}</div>
+          <div class="batch-name">${b[0]}</div>
+          <div class="batch-score">${b[1].toLocaleString()} <span>Commits</span></div>
+        </div>
+      `;
+    });
+    
+    const scopeText = currentScope === 'internal' ? 'Internal' : 'National';
+    document.getElementById('batch-title').textContent = ` Leaderboard (${scopeText} Contributions)`;
+    document.getElementById('batch-cards').innerHTML = cardsHtml || '<div class="state-msg" style="padding: 1rem;">No valid batch mappings found</div>';
+    document.getElementById('batch-leaderboard').style.display = 'block';
+    
+    document.getElementById('stats-row').style.display = 'grid';
+    document.getElementById('main-table').style.display = 'table';
+    document.getElementById('state-msg').style.display = 'none';
+    
+    renderVisible();
+  }
+
+  function renderVisible() {
+    const q = document.getElementById('search').value.toLowerCase().trim();
+    const fOrg = document.getElementById('filter-org').value;
+    const fStack = document.getElementById('filter-stack').value;
+    const body = document.getElementById('tbl-body');
+    
+    let filtered = [...rawUsers];
+
+    if (q) {
+      filtered = filtered.filter(u => 
+        (u.login && u.login.toLowerCase().includes(q)) || 
+        (u.name && u.name.toLowerCase().includes(q))
+      );
+    }
+
+    if (fOrg !== 'all') {
+      filtered = filtered.filter(u => u.organization && u.organization.trim() === fOrg);
+    }
+
+    if (fStack !== 'all') {
+      filtered = filtered.filter(u => u.stack && u.stack.trim() === fStack);
+    }
+
+    filtered.sort((a, b) => {
+      let valA, valB;
+
+      const diffA = (a.prev_rank && a.user_rank) ? (a.prev_rank - a.user_rank) : -999999;
+      const diffB = (b.prev_rank && b.user_rank) ? (b.prev_rank - b.user_rank) : -999999;
+
+      switch(sortCol) {
+        case 'user_rank':
+          valA = a.user_rank ?? 999999;
+          valB = b.user_rank ?? 999999;
+          break;
+        case 'rank_change':
+          valA = diffA; valB = diffB;
+          break;
+        case 'login':
+          valA = a.login.toLowerCase();
+          valB = b.login.toLowerCase();
+          break;
+        case 'organization':
+          valA = (a.organization || 'zzzz').toLowerCase();
+          valB = (b.organization || 'zzzz').toLowerCase();
+          break;
+        case 'stack':
+          valA = (a.stack || 'zzzz').toLowerCase();
+          valB = (b.stack || 'zzzz').toLowerCase();
+          break;
+        case 'contribs':
+          valA = a.contribs || 0;
+          valB = b.contribs || 0;
+          break;
+        default:
+          valA = 0; valB = 0;
+      }
+
+      if (valA < valB) return sortAsc ? -1 : 1;
+      if (valA > valB) return sortAsc ? 1 : -1;
+      return 0;
+    });
+
+    let nUp = 0, nDown = 0;
+    const rankText = currentScope === 'internal' ? 'Internal' : 'In Oman';
+
+    const html = filtered.map(u => {
+      let chipHtml = `<span class="chip chip-same">—</span>`;
+      
+      if (!u.prev_rank) { 
+          chipHtml = `<span class="chip chip-new">NEW</span>`; 
+      } else {
+        const diff = u.prev_rank - u.user_rank; 
+        if (diff > 0) { chipHtml = `<span class="chip chip-up">▲ ${diff}</span>`; nUp++; }
+        else if (diff < 0) { chipHtml = `<span class="chip chip-down">▼ ${Math.abs(diff)}</span>`; nDown++; }
+      }
+      
+      const orgBadgeClass = u.organization === 'TRA' ? 'org-badge tra' : 'org-badge';
+      const orgDisplay = u.organization || '—';
+      const stackBadgeClass = getStackBadgeClass(u.stack);
+      const stackDisplay = u.stack || '—';
+
+      return `<tr>
+        <td class="col-rank">
+          <span class="rank-n">${u.user_rank ? '#' + u.user_rank : 'Un-Ranked'}</span>
+          <span class="rank-label">${rankText}</span>
+        </td>
+        <td class="col-change">${chipHtml}
+            ${u.prev_rank ? `<div style="font-size:9px; color:#aaa; margin-top:2px;">Prev: #${u.prev_rank}</div>` : ''}
+        </td>
+        <td class="col-user">
+          <div class="user-row">
+            <img class="av" src="${u.avatar}" loading="lazy" onerror="this.style.visibility='hidden'" />
+            <div>
+              <a class="uname" href="https://github.com/${u.login}" target="_blank">${u.login}</a>
+              ${u.name ? `<div class="uname-sub">${u.name}</div>` : ''}
+            </div>
+          </div>
+        </td>
+        <td class="col-org">
+          <span class="${orgBadgeClass}">${orgDisplay}</span>
+        </td>
+        <td class="col-stack">
+          <span class="${stackBadgeClass}" title="${stackDisplay}">${stackDisplay}</span>
+        </td>
+        <td class="col-contribs"><span class="contribs-n">${u.contribs.toLocaleString()}</span></td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('s-total').textContent = filtered.length;
+    document.getElementById('s-up').textContent = nUp;
+    document.getElementById('s-down').textContent = nDown;
+
+    body.innerHTML = filtered.length > 0 
+        ? html 
+        : `<tr><td colspan="6" class="state-msg">No accounts found matching your filters.</td></tr>`;
+  }
+
+  async function doRefresh() {
+    document.getElementById('state-msg').style.display = 'block';
+    document.getElementById('main-table').style.display = 'none';
+    document.getElementById('stats-row').style.display = 'none';
+    document.getElementById('batch-leaderboard').style.display = 'none';
+    
+    document.getElementById('state-msg').innerHTML = `<span class="spinner"></span>&nbsp; Fetching ${currentScope === 'internal' ? 'GitHub API' : 'National Database'}...`;
+    
+    document.getElementById('sub-title').textContent = currentScope === 'internal' 
+        ? "Fetching internal ranks for Codeline trainees using GitHub API" 
+        : "Obtaining current Codeline trainees for national rank among top 256 in Oman (Based on recent contributions)";
+
+    try {
+      const res = await fetch(`/api/track?tab=${currentTab}&scope=${currentScope}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      
+      sortCol = 'user_rank';
+      sortAsc = true;
+      document.querySelectorAll('.sortable').forEach(th => { th.classList.remove('active'); th.querySelector('.sort-icon').textContent = '↕'; });
+      const activeTh = document.getElementById('th-user_rank');
+      activeTh.classList.add('active');
+      activeTh.querySelector('.sort-icon').textContent = '▲';
+
+      renderTable(data);
+    } catch (e) {
+      document.getElementById('state-msg').innerHTML = `<span style="color:#a32d2d">Error loading data: ${e.message}</span>`;
+    }
+  }
+
+  function switchTab(tab) {
+    currentTab = tab;
+    ['public', 'all'].forEach(t => document.getElementById('tab-'+t).className = 'btn' + (t===tab?' btn-active':''));
+    doRefresh();
+  }
+
+  function switchScope(scope) {
+    currentScope = scope;
+    ['internal', 'national'].forEach(s => document.getElementById('scope-'+s).className = 'btn' + (s===scope?' btn-active':''));
+    doRefresh();
+  }
+
+  // Close modal on backdrop click
+  document.getElementById('chartModal').addEventListener('click', function(e) {
+    if (e.target === this) closeChartModal();
+  });
+
+  (function init() { doRefresh(); })();
+</script>
+</body>
+</html>

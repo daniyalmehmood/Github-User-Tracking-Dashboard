@@ -1,0 +1,7 @@
+/node_modules
+accounts.txt
+secrets.env
+server.log
+package-lock.json
+PM2_COMMANDS.md.pdf
+PM2_COMMANDS.md
