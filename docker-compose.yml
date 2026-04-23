@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: codeline-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    # Read variables from your secrets.env file
+    env_file:
+      - secrets.env
+    # Override host parameters to use Docker's internal network routing
+    environment:
+      - DB_HOST=db
+      - REDIS_HOST=cache
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_started
+    volumes:
+      # Map accounts.txt so you can edit it locally without rebuilding the image
+      - ./accounts.txt:/app/accounts.txt
+
+  db:
+    image: mysql:8.0
+    container_name: codeline-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-StrongRootPassword123!}
+      MYSQL_DATABASE: github_tracker
+      MYSQL_USER: ${DB_USER:-codeline_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-StrongPassword123!}
+    volumes:
+      - db_data:/var/lib/mysql
+    # Ensure the DB is fully ready before the Node app tries to connect
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  cache:
+    image: redis:alpine
+    container_name: codeline-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+volumes:
+  db_data:
+  redis_data:
